@@ -75,20 +75,27 @@ def close_task(task_id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Переносим задачу в архив
+        # Переносим задачу в архив (теперь с обработкой конфликтов)
         cur.execute("""
             INSERT INTO archive_tasks (task_id, user_id, task, task_closed_date)
             SELECT id, user_id, task, NOW() 
             FROM user_tasks 
             WHERE id = %s
+            ON CONFLICT (task_id) DO NOTHING
             RETURNING task_id
         """, (task_id,))
         
+        # Если задача не была добавлена (уже существует в архиве)
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return False
+        
         # Удаляем из активных задач
         cur.execute("DELETE FROM user_tasks WHERE id = %s", (task_id,))
-        
         conn.commit()
         return True
+        
     except Exception as e:
         conn.rollback()
         print(f"Ошибка при закрытии задачи: {e}")
