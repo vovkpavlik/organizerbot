@@ -33,17 +33,22 @@ def update_user_name(user_id, name):
 def add_task(user_id, task, dedline=None):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO user_tasks (user_id, task, dedline) VALUES (%s, %s, %s)", 
-                (user_id, task, dedline))
+    cur.execute("""
+        INSERT INTO user_tasks (user_id, task, dedline) 
+        VALUES (%s, %s, %s) 
+        RETURNING id
+    """, (user_id, task, dedline))
+    task_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
     conn.close()
+    return task_id
 
 def get_user_tasks(user_id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT task, dedline 
+        SELECT id, task, dedline 
         FROM user_tasks 
         WHERE user_id = %s 
         ORDER BY dedline ASC NULLS LAST, id
@@ -56,13 +61,58 @@ def get_user_tasks(user_id):
 def get_due_tasks(current_time):
     conn = get_db_connection()
     cur = conn.cursor()
-    # Получаем задачи, дедлайн которых совпадает с текущим временем (минута в минуту)
     cur.execute("""
-        SELECT user_id, task 
+        SELECT id, user_id, task 
         FROM user_tasks 
         WHERE dedline = %s
     """, (current_time,))
     tasks = cur.fetchall()
     cur.close()
     conn.close()
-    return tasks  # Возвращаем список кортежей (user_id, task)
+    return tasks  # Возвращаем список кортежей (id, user_id, task)
+
+def close_task(task_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Переносим задачу в архив
+        cur.execute("""
+            INSERT INTO archive_tasks (task_id, user_id, task, task_closed_date)
+            SELECT id, user_id, task, NOW() 
+            FROM user_tasks 
+            WHERE id = %s
+            RETURNING task_id
+        """, (task_id,))
+        
+        # Удаляем из активных задач
+        cur.execute("DELETE FROM user_tasks WHERE id = %s", (task_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Ошибка при закрытии задачи: {e}")
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+def update_task_deadline(task_id, new_deadline):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE user_tasks 
+            SET dedline = %s 
+            WHERE id = %s
+            RETURNING id
+        """, (new_deadline, task_id))
+        conn.commit()
+        return cur.fetchone() is not None
+    except Exception as e:
+        conn.rollback()
+        print(f"Ошибка при обновлении дедлайна: {e}")
+        return False
+    finally:
+        cur.close()
+        conn.close()
