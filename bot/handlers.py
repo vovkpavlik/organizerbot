@@ -26,6 +26,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=MAIN_MENU
         )
 
+# Изменяем сообщение на дефолтное, с дефолтным меню
 async def replace_task_added_message(context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
     await asyncio.sleep(300)  # Ждем 5 минут (300 секунд)
     try:
@@ -99,15 +100,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['last_menu_message_id'] = sent_message.message_id
             
             # Устанавливаем таймер для автоматического возврата в меню
-            if hasattr(context, 'job_queue') and context.job_queue:
-                context.job_queue.run_once(
-                    lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, sent_message.message_id)),
-                    300
-                )
+            # if hasattr(context, 'job_queue') and context.job_queue:
+            #     context.job_queue.run_once(
+            #         lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, sent_message.message_id)), # вызываем функцию, которая меняет наше сообщение на дефолтное с дефолтными кнопками.
+            #         300
+            #     )
             
             # Очищаем временные данные
-            for key in ['task_text', 'waiting_for_dedline', 'bot_message_id']:
-                context.user_data.pop(key, None)
+            # for key in ['task_text', 'waiting_for_dedline', 'bot_message_id']:
+            #     context.user_data.pop(key, None)
                 
         except ValueError:
             await update.message.reply_text(
@@ -198,22 +199,22 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Добавление задачи без напоминания
         elif query.data == "no_reminder":
             add_task(user_id, context.user_data['task_text'])
-            await query.edit_message_text(
+            await query.edit_message_text( # Ждем пока юзер напишет задачу
                 "✅ Задача добавлена",
-                reply_markup=MAIN_MENU
+                reply_markup=MAIN_MENU  # Выдаем стандартное меню
             )
-            context.user_data['last_menu_message_id'] = message_id
+            context.user_data['last_menu_message_id'] = message_id  # Получаем id последнего сообщения
             
             # Устанавливаем таймер для автоматического возврата в меню
-            if hasattr(context, 'job_queue') and context.job_queue:
-                context.job_queue.run_once(
-                    lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, message_id)),
-                    300
-                )
+            # if hasattr(context, 'job_queue') and context.job_queue:
+            #     context.job_queue.run_once(
+            #         lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, message_id)),
+            #         300
+            #     )
             
             # Очищаем временные данные
-            context.user_data.pop('task_text', None)
-            context.user_data.pop('bot_message_id', None)
+            # context.user_data.pop('task_text', None)
+            # context.user_data.pop('bot_message_id', None)
 
         # Запрос дедлайна для новой задачи
         elif query.data == "set_reminder":
