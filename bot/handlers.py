@@ -98,17 +98,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=MAIN_MENU
             )
             context.user_data['last_menu_message_id'] = sent_message.message_id
-            
-            # Устанавливаем таймер для автоматического возврата в меню
-            # if hasattr(context, 'job_queue') and context.job_queue:
-            #     context.job_queue.run_once(
-            #         lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, sent_message.message_id)), # вызываем функцию, которая меняет наше сообщение на дефолтное с дефолтными кнопками.
-            #         300
-            #     )
-            
-            # Очищаем временные данные
-            # for key in ['task_text', 'waiting_for_dedline', 'bot_message_id']:
-            #     context.user_data.pop(key, None)
                 
         except ValueError:
             await update.message.reply_text(
@@ -204,17 +193,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=MAIN_MENU  # Выдаем стандартное меню
             )
             context.user_data['last_menu_message_id'] = message_id  # Получаем id последнего сообщения
-            
-            # Устанавливаем таймер для автоматического возврата в меню
-            # if hasattr(context, 'job_queue') and context.job_queue:
-            #     context.job_queue.run_once(
-            #         lambda ctx: asyncio.create_task(replace_task_added_message(ctx, chat_id, message_id)),
-            #         300
-            #     )
-            
-            # Очищаем временные данные
-            # context.user_data.pop('task_text', None)
-            # context.user_data.pop('bot_message_id', None)
 
         # Запрос дедлайна для новой задачи
         elif query.data == "set_reminder":
@@ -239,15 +217,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=MAIN_MENU
                 )
             context.user_data.pop('current_task_id', None)
-
-        # Перенос срока задачи
-        # elif query.data == "reschedule_task":
-        #     await query.edit_message_text(
-        #         "Введи новую дату и время в формате ДД.ММ.ГГГГ ЧЧ:ММ:",
-        #         reply_markup=RESCHEDULE_CONFIRM
-        #     )
-        #     context.user_data['waiting_for_reschedule'] = True
-        #     context.user_data['bot_message_id'] = message_id
 
     except Exception as e:
         print(f"Ошибка в обработчике callback: {e}")
