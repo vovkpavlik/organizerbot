@@ -241,13 +241,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('current_task_id', None)
 
         # Перенос срока задачи
-        elif query.data == "reschedule_task":
-            await query.edit_message_text(
-                "Введи новую дату и время в формате ДД.ММ.ГГГГ ЧЧ:ММ:",
-                reply_markup=RESCHEDULE_CONFIRM
-            )
-            context.user_data['waiting_for_reschedule'] = True
-            context.user_data['bot_message_id'] = message_id
+        # elif query.data == "reschedule_task":
+        #     await query.edit_message_text(
+        #         "Введи новую дату и время в формате ДД.ММ.ГГГГ ЧЧ:ММ:",
+        #         reply_markup=RESCHEDULE_CONFIRM
+        #     )
+        #     context.user_data['waiting_for_reschedule'] = True
+        #     context.user_data['bot_message_id'] = message_id
 
     except Exception as e:
         print(f"Ошибка в обработчике callback: {e}")
