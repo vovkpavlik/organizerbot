@@ -15,32 +15,49 @@ async def check_due_tasks(context: ContextTypes.DEFAULT_TYPE):
     
     for task_id, user_id, task in due_tasks:
         try:
-            # Получаем или создаем user_data для пользователя
             user_data = context.application.user_data.get(user_id, {})
             if user_id not in context.application.user_data:
                 context.application.user_data[user_id] = {}
 
-            # Удаляем старое сообщение, если оно есть
-            if 'last_menu_message_id' in user_data:
-                try:
-                    await context.bot.delete_message(
-                        chat_id=user_id,
-                        message_id=user_data['last_menu_message_id']
-                    )
-                except Exception as e:
-                    logger.warning(f"Не удалось удалить сообщение для пользователя {user_id}: {e}")
+            # Проверяем, добавляет ли пользователь задачу
+            if 'waiting_for_task' in user_data:
+                # Удаляем старое сообщение, если оно есть
+                if 'last_menu_message_id' in user_data:
+                    try:
+                        await context.bot.delete_message(
+                            chat_id=user_id,
+                            message_id=user_data['last_menu_message_id']
+                        )
+                    except Exception as e:
+                        logger.warning(f"Не удалось удалить сообщение для пользователя {user_id}: {e}")
+                
+                # Отправляем напоминание без кнопок
+                sent_message = await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"⏰ Напоминаю о задаче:\n{task}\nЧтобы продолжить работу над задачей — заверши создание новой задачи"
+                )
+                user_data['last_menu_message_id'] = sent_message.message_id
+                user_data['pending_reminder'] = {'task': task, 'task_id': task_id}
+                logger.info(f"Напоминание без кнопок отправлено пользователю {user_id} для задачи {task_id}")
+            else:
+                # Стандартная логика для других случаев
+                if 'last_menu_message_id' in user_data:
+                    try:
+                        await context.bot.delete_message(
+                            chat_id=user_id,
+                            message_id=user_data['last_menu_message_id']
+                        )
+                    except Exception as e:
+                        logger.warning(f"Не удалось удалить сообщение для пользователя {user_id}: {e}")
 
-            # Сохраняем ID текущей задачи
-            context.application.user_data[user_id]['current_task_id'] = task_id
-            
-            # Отправляем напоминание
-            sent_message = await context.bot.send_message(
-                chat_id=user_id,
-                text=f"⏰ Напоминаю о задаче:\n{task}",
-                reply_markup=TASK_ACTIONS
-            )
-            context.application.user_data[user_id]['last_menu_message_id'] = sent_message.message_id
-            logger.info(f"Напоминание отправлено пользователю {user_id} для задачи {task_id}")
+                context.application.user_data[user_id]['current_task_id'] = task_id
+                sent_message = await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"⏰ Напоминаю о задаче:\n{task}",
+                    reply_markup=TASK_ACTIONS
+                )
+                context.application.user_data[user_id]['last_menu_message_id'] = sent_message.message_id
+                logger.info(f"Напоминание отправлено пользователю {user_id} для задачи {task_id}")
         
         except Exception as e:
             logger.error(f"Ошибка при отправке напоминания пользователю {user_id}: {e}")

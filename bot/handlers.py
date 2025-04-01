@@ -26,17 +26,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=MAIN_MENU
         )
 
-# async def replace_task_added_message(context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
-#     await asyncio.sleep(300)  # Ждем 5 минут (300 секунд)
-#     try:
-#         await context.bot.edit_message_text(
-#             chat_id=chat_id,
-#             message_id=message_id,
-#             text="Выбери действие:",
-#             reply_markup=MAIN_MENU
-#         )
-#     except Exception as e:
-#         print(f"Не удалось обновить сообщение: {e}")
+async def replace_task_added_message(context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
+    await asyncio.sleep(300)  # Ждем 5 минут (300 секунд)
+    try:
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text="Выбери действие:",
+            reply_markup=MAIN_MENU
+        )
+    except Exception as e:
+        print(f"Не удалось обновить сообщение: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -65,9 +65,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['task_text'] = text
         await update.message.delete()
         
-        if 'bot_message_id' in context.user_data:
+        # Удаляем сообщение "Напиши задачу" через last_menu_message_id
+        if 'last_menu_message_id' in context.user_data:
             try:
-                await context.bot.delete_message(chat_id, context.user_data['bot_message_id'])
+                await context.bot.delete_message(chat_id, context.user_data['last_menu_message_id'])
             except Exception as e:
                 print(f"Не удалось удалить сообщение: {e}")
         
@@ -76,8 +77,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Нужно ли поставить напоминание?",
             reply_markup=REMINDER_CHOICE
         )
-        context.user_data['bot_message_id'] = sent_message.message_id
+        context.user_data['last_menu_message_id'] = sent_message.message_id
         context.user_data['waiting_for_task'] = False
+        
+        # Проверяем, есть ли отложенное напоминание
+        if 'pending_reminder' in context.user_data:
+            task_text = context.user_data['pending_reminder']['task']
+            task_id = context.user_data['pending_reminder']['task_id']
+            try:
+                await context.bot.delete_message(chat_id, sent_message.message_id)
+                sent_message = await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"✅ Задача добавлена. ⏰ Напоминаю о задаче:\n{task_text}",
+                    reply_markup=TASK_ACTIONS
+                )
+                context.user_data['last_menu_message_id'] = sent_message.message_id
+                context.application.user_data[user_id]['current_task_id'] = task_id
+                context.user_data.pop('pending_reminder', None)
+            except Exception as e:
+                print(f"Не удалось обработать напоминание: {e}")
         return
 
     # Обработка переноса срока задачи
@@ -96,13 +114,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         print(f"Не удалось удалить сообщение: {e}")
                 
-                # Отправляем сообщение и сохраняем его message_id
                 sent_message = await context.bot.send_message(
                     chat_id=chat_id,
                     text=f"✅ Срок задачи перенесен на {new_deadline.strftime('%d.%m.%Y %H:%M')}",
                     reply_markup=MAIN_MENU
                 )
-                context.user_data['last_menu_message_id'] = sent_message.message_id  # Сохраняем ID
+                context.user_data['last_menu_message_id'] = sent_message.message_id
                 print(f"Срок задачи {task_id} успешно обновлен")
             else:
                 await update.message.reply_text(
@@ -111,7 +128,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 print(f"Не удалось обновить задачу с task_id={task_id}")
             
-            # Очищаем временные данные
             for key in ['waiting_for_reschedule', 'bot_message_id']:
                 context.user_data.pop(key, None)
             if user_id in context.application.user_data:
@@ -142,7 +158,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=MAIN_MENU
             )
             context.user_data['last_menu_message_id'] = sent_message.message_id
-            # Очищаем флаг после успешного добавления
+            
+            # Проверяем, есть ли отложенное напоминание
+            if 'pending_reminder' in context.user_data:
+                task_text = context.user_data['pending_reminder']['task']
+                task_id = context.user_data['pending_reminder']['task_id']
+                try:
+                    await context.bot.delete_message(chat_id, sent_message.message_id)
+                    sent_message = await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"✅ Задача добавлена. ⏰ Напоминаю о задаче:\n{task_text}",
+                        reply_markup=TASK_ACTIONS
+                    )
+                    context.user_data['last_menu_message_id'] = sent_message.message_id
+                    context.application.user_data[user_id]['current_task_id'] = task_id
+                    context.user_data.pop('pending_reminder', None)
+                except Exception as e:
+                    print(f"Не удалось обработать напоминание: {e}")
+            
             context.user_data.pop('waiting_for_dedline', None)
                 
         except ValueError:
@@ -160,11 +193,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if query.data == "add_task":
-            context.user_data['bot_message_id'] = message_id
             await query.edit_message_text(
                 "Напиши задачу, которую хочешь добавить",
                 reply_markup=BACK_TO_MENU
             )
+            context.user_data['last_menu_message_id'] = message_id  # Сохраняем как последнее сообщение
             context.user_data['waiting_for_task'] = True
 
         elif query.data == "my_tasks":
@@ -185,7 +218,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
         elif query.data == "back_to_menu":
-            # Очищаем все флаги при возврате в меню
             for key in ['waiting_for_name', 'waiting_for_task', 'waiting_for_dedline', 'waiting_for_reschedule']:
                 context.user_data.pop(key, None)
             await query.edit_message_text(
@@ -200,9 +232,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=MAIN_MENU
             )
             context.user_data['last_menu_message_id'] = message_id
+            
+            # Проверяем, есть ли отложенное напоминание
+            if 'pending_reminder' in context.user_data:
+                task_text = context.user_data['pending_reminder']['task']
+                task_id = context.user_data['pending_reminder']['task_id']
+                try:
+                    await context.bot.delete_message(chat_id, message_id)
+                    sent_message = await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"✅ Задача добавлена. ⏰ Напоминаю о задаче:\n{task_text}",
+                        reply_markup=TASK_ACTIONS
+                    )
+                    context.user_data['last_menu_message_id'] = sent_message.message_id
+                    context.application.user_data[user_id]['current_task_id'] = task_id
+                    context.user_data.pop('pending_reminder', None)
+                except Exception as e:
+                    print(f"Не удалось обработать напоминание: {e}")
 
         elif query.data == "set_reminder":
-            # Очищаем другие флаги перед установкой waiting_for_dedline
             for key in ['waiting_for_name', 'waiting_for_task', 'waiting_for_reschedule']:
                 context.user_data.pop(key, None)
             await query.edit_message_text(
@@ -228,7 +276,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.application.user_data[user_id].pop('current_task_id', None)
 
         elif query.data == "reschedule_task":
-            # Очищаем другие флаги перед установкой waiting_for_reschedule
             for key in ['waiting_for_name', 'waiting_for_task', 'waiting_for_dedline']:
                 context.user_data.pop(key, None)
             await query.edit_message_text(
