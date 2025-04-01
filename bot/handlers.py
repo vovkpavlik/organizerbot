@@ -26,17 +26,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=MAIN_MENU
         )
 
-async def replace_task_added_message(context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
-    await asyncio.sleep(300)  # Ждем 5 минут (300 секунд)
-    try:
-        await context.bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text="Выбери действие:",
-            reply_markup=MAIN_MENU
-        )
-    except Exception as e:
-        print(f"Не удалось обновить сообщение: {e}")
+# async def replace_task_added_message(context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
+#     await asyncio.sleep(300)  # Ждем 5 минут (300 секунд)
+#     try:
+#         await context.bot.edit_message_text(
+#             chat_id=chat_id,
+#             message_id=message_id,
+#             text="Выбери действие:",
+#             reply_markup=MAIN_MENU
+#         )
+#     except Exception as e:
+#         print(f"Не удалось обновить сообщение: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -80,7 +80,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting_for_task'] = False
         return
 
-    # Обработка переноса срока задачи (переместили выше, чтобы избежать пересечения)
+    # Обработка переноса срока задачи
     if context.user_data.get('waiting_for_reschedule'):
         try:
             task_id = context.application.user_data.get(user_id, {}).get('current_task_id')
@@ -96,11 +96,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         print(f"Не удалось удалить сообщение: {e}")
                 
-                await context.bot.send_message(
+                # Отправляем сообщение и сохраняем его message_id
+                sent_message = await context.bot.send_message(
                     chat_id=chat_id,
                     text=f"✅ Срок задачи перенесен на {new_deadline.strftime('%d.%m.%Y %H:%M')}",
                     reply_markup=MAIN_MENU
                 )
+                context.user_data['last_menu_message_id'] = sent_message.message_id  # Сохраняем ID
                 print(f"Срок задачи {task_id} успешно обновлен")
             else:
                 await update.message.reply_text(
